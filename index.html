@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NaCl Molarity Explorer</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #5b6575;
+      --border: #d7dde7;
+      --accent: #2f6fed;
+      --accent-soft: #eaf1ff;
+      --liquid: #cfe8ff;
+      --liquid-deep: #8fc8ff;
+      --good: #196c47;
+      --warning-bg: #fff6df;
+      --warning-border: #e3b23c;
+      --shadow: 0 10px 30px rgba(31, 41, 55, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 12px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.45;
+    }
+    .app { max-width: 900px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: clamp(1.45rem, 3vw, 2rem); }
+    .subtitle { margin: 0 0 10px; color: var(--muted); font-size: 0.94rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) 180px;
+      gap: 12px;
+      align-items: stretch;
+    }
+    .panel, .steps {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+    .panel h2, .steps h2 { margin: 0 0 10px; font-size: 1.05rem; }
+    .control { margin-bottom: 12px; }
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 8px;
+      align-items: baseline;
+    }
+    label { font-weight: 700; }
+    .value {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .fixed-box {
+      border: 1px solid var(--border);
+      background: #f3f5f8;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .beaker-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 210px;
+    }
+    .beaker {
+      position: relative;
+      width: 145px;
+      height: 180px;
+      border-left: 5px solid #6b7280;
+      border-right: 5px solid #6b7280;
+      border-bottom: 5px solid #6b7280;
+      border-radius: 0 0 22px 22px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .beaker::before, .beaker::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      width: 42px;
+      height: 5px;
+      background: #6b7280;
+      z-index: 5;
+    }
+    .beaker::before { left: -5px; }
+    .beaker::after { right: -5px; }
+    .liquid {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 18%;
+      background: linear-gradient(to bottom, var(--liquid), var(--liquid-deep));
+      transition: height 250ms ease;
+      overflow: hidden;
+    }
+    .liquid::before {
+      content: "";
+      position: absolute;
+      top: -4px;
+      left: 0; right: 0;
+      height: 8px;
+      border-radius: 50%;
+      background: #dff1ff;
+    }
+    .tick {
+      position: absolute;
+      right: 8px;
+      width: 28px;
+      border-top: 2px solid #9ca3af;
+      z-index: 4;
+    }
+    .tick span {
+      position: absolute;
+      right: 32px;
+      top: -10px;
+      color: var(--muted);
+      font-size: 0.66rem;
+      white-space: nowrap;
+    }
+    .t250 { bottom: 90%; }
+    .t200 { bottom: 72%; }
+    .t150 { bottom: 54%; }
+    .t100 { bottom: 36%; }
+    .t50  { bottom: 18%; }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(31,41,55,.18);
+      user-select: none;
+      opacity: 0.92;
+    }
+    .na {
+      width: 8px;
+      height: 8px;
+      background: #7b61ff;
+    }
+    .cl {
+      width: 11px;
+      height: 11px;
+      background: #67b85f;
+    }
+    .beaker-caption {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.76rem;
+      margin-top: 4px;
+    }
+    .particle-key {
+      margin-top: 6px;
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+    .key-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .key-dot {
+      display: inline-block;
+      border-radius: 50%;
+      border: 1px solid rgba(31,41,55,.18);
+      vertical-align: middle;
+    }
+    .key-na {
+      width: 8px;
+      height: 8px;
+      background: #7b61ff;
+    }
+    .key-cl {
+      width: 11px;
+      height: 11px;
+      background: #67b85f;
+    }
+    .results {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .result-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      text-align: center;
+    }
+    .result-label { color: var(--muted); font-size: .76rem; margin-bottom: 2px; }
+    .result-value { font-size: 1.06rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .steps { margin-top: 10px; }
+    .equation {
+      margin: 6px 0;
+      padding: 8px 10px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 8px;
+    }
+    .warning {
+      margin-top: 10px;
+      border-left: 4px solid var(--warning-border);
+      background: var(--warning-bg);
+      padding: 9px 11px;
+      font-size: 0.9rem;
+      border-radius: 10px;
+    }
+    .warning strong { display: block; margin-bottom: 4px; }
+    .challenge {
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .challenge-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    button {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 10px;
+      padding: 7px 9px;
+      font-size: .86rem;
+      cursor: pointer;
+    }
+    button:hover, button:focus-visible { border-color: var(--accent); outline: none; }
+    .feedback { margin-top: 10px; min-height: 1.5em; font-weight: 700; }
+    .reset-row { margin-top: 8px; display: flex; justify-content: flex-end; }
+    .reset { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+    @media (max-width: 520px) {
+      body { padding: 8px; }
+      .grid { grid-template-columns: minmax(190px, 1fr) 145px; gap: 8px; }
+      .beaker { width: 120px; height: 155px; }
+      .beaker-wrap { min-height: 175px; }
+      .panel { padding: 9px; }
+      .label-row { gap: 8px; font-size: 0.88rem; }
+      .fixed-box { font-size: 0.78rem; }
+      .results { grid-template-columns: repeat(3, 1fr); gap: 5px; }
+      .result-card { padding: 6px 4px; }
+      .result-label { font-size: 0.68rem; }
+      .result-value { font-size: 0.92rem; }
+    }
+
+    @media (max-width: 380px) {
+      .grid { grid-template-columns: 1fr; }
+      .beaker-wrap { min-height: 165px; }
+      .results { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>NaCl Molarity Explorer</h1>
+    <p class="subtitle">Explore how the mass of NaCl and the <strong>total solution volume</strong> affect molarity.</p>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Change the solution</h2>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="mass">Mass of NaCl</label>
+            <span class="value" id="massValue">8.00 g</span>
+          </div>
+          <input id="mass" type="range" min="1" max="15" step="0.25" value="8" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label>Molar mass of NaCl</label>
+            <span class="value">58.44 g/mol</span>
+          </div>
+          <div class="fixed-box">The molar mass is fixed because this model always uses NaCl.</div>
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="volume">Total solution volume</label>
+            <span class="value" id="volumeValue">50.00 mL</span>
+          </div>
+          <input id="volume" type="range" min="25" max="250" step="5" value="50" />
+        </div>
+
+        <div class="reset-row">
+          <button class="reset" id="resetBtn" type="button">Reset to lab example</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Visual model</h2>
+        <div class="beaker-wrap" aria-label="Beaker model showing changing solution volume and ion concentration">
+          <div class="beaker">
+            <div class="tick t250"><span>250 mL</span></div>
+            <div class="tick t200"><span>200 mL</span></div>
+            <div class="tick t150"><span>150 mL</span></div>
+            <div class="tick t100"><span>100 mL</span></div>
+            <div class="tick t50"><span>50 mL</span></div>
+            <div class="liquid" id="liquid"></div>
+          </div>
+        </div>
+        <div class="beaker-caption">Particle spacing is a visual model of concentration, not an exact molecular-scale drawing.</div>
+        <div class="particle-key" aria-label="Particle color key">
+          <span class="key-item"><span class="key-dot key-na"></span> Na<sup>+</sup></span>
+          <span class="key-item"><span class="key-dot key-cl"></span> Cl<sup>−</sup></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="results" aria-live="polite">
+      <div class="result-card">
+        <div class="result-label">Moles of NaCl</div>
+        <div class="result-value" id="molesResult">0.1369 mol</div>
+      </div>
+      <div class="result-card">
+        <div class="result-label">Volume in liters</div>
+        <div class="result-value" id="litersResult">0.05000 L</div>
+      </div>
+      <div class="result-card">
+        <div class="result-label">Molarity</div>
+        <div class="result-value" id="molarityResult">2.74 M</div>
+      </div>
+    </section>
+
+    <section class="steps">
+      <h2>Follow the calculation</h2>
+
+      <div class="equation"><strong>Step 1:</strong> moles NaCl = <span id="massEquation">8.00 g</span> ÷ 58.44 g/mol = <strong id="molesEquation">0.1369 mol</strong></div>
+      <div class="equation"><strong>Step 2:</strong> <span id="mlEquation">50.00 mL</span> ÷ 1000 = <strong id="litersEquation">0.05000 L</strong></div>
+      <div class="equation"><strong>Step 3:</strong> molarity = <span id="molesEquation2">0.1369 mol</span> ÷ <span id="litersEquation2">0.05000 L</span> = <strong id="molarityEquation">2.74 M</strong></div>
+
+      <div class="warning">
+        <strong>Important: total solution volume ≠ volume of water added</strong>
+        In lab, you will dissolve the NaCl first and then add water until the <strong>final solution volume</strong> reaches the calibration line on the volumetric flask. This beaker is only a visual model that lets you change the volume.
+      </div>
+
+      <div class="challenge">
+        <p><strong>Quick check:</strong> If the number of moles stays the same but the solution volume doubles, what happens to the molarity?</p>
+        <div class="challenge-buttons">
+          <button type="button" data-answer="higher">It doubles</button>
+          <button type="button" data-answer="same">It stays the same</button>
+          <button type="button" data-answer="lower">It is cut in half</button>
+        </div>
+        <div class="feedback" id="feedback" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const MOLAR_MASS = 58.44;
+    const massSlider = document.getElementById("mass");
+    const volumeSlider = document.getElementById("volume");
+    const massValue = document.getElementById("massValue");
+    const volumeValue = document.getElementById("volumeValue");
+    const liquid = document.getElementById("liquid");
+    const molesResult = document.getElementById("molesResult");
+    const litersResult = document.getElementById("litersResult");
+    const molarityResult = document.getElementById("molarityResult");
+    const massEquation = document.getElementById("massEquation");
+    const molesEquation = document.getElementById("molesEquation");
+    const mlEquation = document.getElementById("mlEquation");
+    const litersEquation = document.getElementById("litersEquation");
+    const molesEquation2 = document.getElementById("molesEquation2");
+    const litersEquation2 = document.getElementById("litersEquation2");
+    const molarityEquation = document.getElementById("molarityEquation");
+    const resetBtn = document.getElementById("resetBtn");
+    const feedback = document.getElementById("feedback");
+
+    function clearParticles() {
+      liquid.querySelectorAll(".particle").forEach(p => p.remove());
+    }
+
+    function seededPosition(i) {
+      return {
+        x: 6 + ((i * 37) % 84),
+        y: 8 + ((i * 53) % 78)
+      };
+    }
+
+    function drawParticles(mass, volumeML) {
+      clearParticles();
+
+      // About one Na+/Cl- pair per gram of NaCl.
+      const pairCount = Math.max(1, Math.min(15, Math.round(mass)));
+
+      // Deterministic pseudo-random number generator.
+      // This makes the arrangement look random, but keeps each particle
+      // in a stable location instead of jumping whenever a slider moves.
+      function pseudoRandom(seed) {
+        const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+        return x - Math.floor(x);
+      }
+
+      for (let i = 0; i < pairCount; i++) {
+        // Give each ion its own scattered position.
+        // Horizontal positions stay inside the beaker walls.
+        const naX = 8 + pseudoRandom(i * 4 + 1) * 78;
+        const clX = 8 + pseudoRandom(i * 4 + 2) * 78;
+
+        // Vertical positions span most of the liquid itself.
+        // Because these percentages are relative to the liquid container,
+        // the ions remain distributed throughout the full solution height.
+        const naY = 8 + pseudoRandom(i * 4 + 3) * 80;
+        const clY = 8 + pseudoRandom(i * 4 + 4) * 80;
+
+        const na = document.createElement("div");
+        na.className = "particle na";
+        na.style.left = naX + "%";
+        na.style.bottom = naY + "%";
+
+        const cl = document.createElement("div");
+        cl.className = "particle cl";
+        cl.style.left = clX + "%";
+        cl.style.bottom = clY + "%";
+
+        liquid.appendChild(na);
+        liquid.appendChild(cl);
+      }
+    }
+
+    function update() {
+      const mass = Number(massSlider.value);
+      const volumeML = Number(volumeSlider.value);
+      const volumeL = volumeML / 1000;
+      const moles = mass / MOLAR_MASS;
+      const molarity = moles / volumeL;
+
+      massValue.textContent = mass.toFixed(2) + " g";
+      volumeValue.textContent = volumeML.toFixed(2) + " mL";
+
+      molesResult.textContent = moles.toFixed(4) + " mol";
+      litersResult.textContent = volumeL.toFixed(5) + " L";
+      molarityResult.textContent = molarity.toFixed(2) + " M";
+
+      massEquation.textContent = mass.toFixed(2) + " g";
+      molesEquation.textContent = moles.toFixed(4) + " mol";
+      mlEquation.textContent = volumeML.toFixed(2) + " mL";
+      litersEquation.textContent = volumeL.toFixed(5) + " L";
+      molesEquation2.textContent = moles.toFixed(4) + " mol";
+      litersEquation2.textContent = volumeL.toFixed(5) + " L";
+      molarityEquation.textContent = molarity.toFixed(2) + " M";
+
+      liquid.style.height = Math.max(10, Math.min(90, (volumeML / 250) * 90)) + "%";
+      drawParticles(mass, volumeML);
+    }
+
+    massSlider.addEventListener("input", update);
+    volumeSlider.addEventListener("input", update);
+
+    resetBtn.addEventListener("click", () => {
+      massSlider.value = 8;
+      volumeSlider.value = 50;
+      feedback.textContent = "";
+      update();
+    });
+
+    document.querySelectorAll(".challenge-buttons button").forEach(button => {
+      button.addEventListener("click", () => {
+        if (button.dataset.answer === "lower") {
+          feedback.textContent = "Correct! With the same number of moles spread through twice the volume, the molarity is cut in half.";
+          feedback.style.color = "var(--good)";
+        } else {
+          feedback.textContent = "Try again. Molarity is moles of solute divided by liters of solution.";
+          feedback.style.color = "#9a3412";
+        }
+      });
+    });
+
+    update();
+  </script>
+</body>
+</html>
